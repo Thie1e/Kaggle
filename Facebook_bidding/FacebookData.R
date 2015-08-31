@@ -12,10 +12,6 @@ library(tau)
 library(convenience)
 library(Rtsne)
 
-if (Sys.info()['sysname'] == "Windows"){
-      setwd("W:/asc90698583/Wuala Sync/Diverses/Kaggle/Facebook/")
-} else setwd("/home/khl4v/Wuala Sync/Diverses/Kaggle/Facebook")
-
 # find indices where a vector changes
 dup <- function(v) data.table:::uniqlist(list(v))
 
@@ -29,18 +25,12 @@ test <- fread("Data//test.csv")
 
 # Datenüberblick -----------------------------------------------------------
 # 6614 Bieter in bids, 2013 in train, 4630 in test, public LB also ca. 1400
-# ...von diesen 2013 finden sich 1984 in bids, 29 nicht
 # 15051 Auktionen insgesamt
 # 7351 devices, ist das Telefonmodell des Bieters
 # Bids from 200 countries
-# 2303991 verschiedene IPs. Es könnte sein, dass wegen dyn. IPs der gleiche Bieter
-# verschiedene IPs benutzt oder sogar, dass verschiedene Bieter die gleiche IP
-# haben. Letzteres wäre aber vll. auch ein Hinweis auf "Unstimmigekeiten".
+# 2303991 verschiedene IPs.
 # 2013 verschiedene Payment accounts, so viele wie Beobachtungen.
 # 2013 verschiedene Adressen, so viele wie Beobachtungen.
-# Adresse und payment account sind wohl als Variablen für die Vorhersage nicht
-# verwertbar.
-# bid_id ist für jede Zeile anders, wohl auch nicht als Variable geeignet.
 
 # (table(bids$merchandise))
 # auto parts  books and music         clothing        computers        furniture       home goods          jewelry
@@ -54,12 +44,6 @@ test <- fread("Data//test.csv")
 # Min.  1st Qu.   Median     Mean  3rd Qu.     Max.
 # 1.0      7.0     38.0    508.7    197.0 537300.0
 
-# Testset
-# dim(test) # 4700 3
-# > length(which(test$bidder_id %in% bids$bidder_id))
-# [1] 4630
-# 70 der bidder_id im Testset sind nicht in bids. Für die muss man dann eben
-# den Erwartungswert vorhersagen (wurde später von Kaggle korrigiert):
 # table(train$outcome)
 # 0    1
 # 1910  103
@@ -72,18 +56,13 @@ dat <- merge(train,
              bids[, .(bidder_id, auction, merchandise, device, time,
                       country, ip, url)],
              by = "bidder_id", all.x = T)
-# Keine NAs in bids, aber manche Bieter aus Train sind nicht in bids (nur 29)
 dat <- na.omit(dat)
 
-# Auch für das Testset müssen die Features erzeugt werden. Außerdem eignet es
-# sich ja für unsupervised learning genau so wie das Trainigsset
 test2 <- merge(test,
                bids[, .(bidder_id, auction, merchandise, device, time,
                         country, ip, url)],
                by = "bidder_id", all.x = T)
 test2$outcome <- NA
-
-# storeAll(100) # test2, dat
 
 dat <- rbind(dat, test2)
 rm(test2); gc()
@@ -101,53 +80,6 @@ dat <- merge(dat, maxMerch, by = "auction")
 
 load("SOARcache/dat@.RData")
 storeThese("dat")
-
-### Benötigt werden Zeitreihen der Bieter pro Auktion
-# Denkbare Variablen pro Bieter:
-#     X Gebote pro Auktion
-#     X Maximale Anzahl an aufeinanderfolgenden Geboten des gleichen Bieters
-#     X Anzahl dieser Sequenzen von Geboten pro Auktion
-#     X Zeitabstand zwischen Geboten (min, mean, median) [aufgrund obfuscation
-#           ist das wohl äquivalent zu den rängen, die ich berechnet habe]
-#     X merchandise Kategorie
-#     X country
-#     X Wie viele verschiedene IPs hat der Bieter benutzt?
-#     Hat sich der Bieter bei einer Auktion eine IP mit anderen Bietern geteilt
-#           (vielleicht ist das ja ein Bot, der für verschiedene Bieter bietet)?
-#     Wie viel Zeitdifferenz war zwischen dem letzten Gebot des Bieters und dem
-#           letzten Gebot in der Auktion?
-#     X ...oder vom Ende der Auktion betrachtet: an welcher Stelle stand das
-#           letzte Gebot des Bieters? Durchschnittlicher Rang
-#     Wie viele verschiedene Bieter gab es in der Auktion? [Wozu?]
-#     X Wie viele verschiedene Geräte benutzt der Bieter?
-#     X Wie oft wechselt der Bieter das Gerät?
-#     X Anzahl an verschiedenen Ländern, aus denen der Bieter geboten hat
-#     X Durchschn. Anzahl an Ländern, aus denen der Bieter pro Auktion bietet
-#     X Entfernung der verschiedenen Länder, aus denen der Bieter geboten hat
-#           (insgesamt und pro Auktion im Mittelwert)
-#     X Wie oft in einer Auktion wechselt das Land (mean und max)?
-#     Was kann man noch anhand des Landes über den Bieter erfahren?
-#     X Auf wie viele verschiedene Kategorien von merchandise hat der Bieter geboten?
-#     X Anzahl der Geräte nicht pro Auktion sondern insgesamt
-#     X Wie oft wechselt die IP in einer Auktion
-#     ...oder evtl. in einer zusammenhängenden Sequenz von Geboten?
-#     X Merchandise bezieht sich nicht auf die Auktion, sondern den Bieter
-#           (mit was für einem Suchbegriff er auf die Seite gekommen ist).
-#           Irgendwie ein Maß dafür finden, wie
-#           gleichmäßig der Bieter seine Gebote auf die Kategrien verteilt
-#           nMerch ist trotzdem nützlich als realistische Einschätzung, worum
-#           es sich bei der Auktion handelt. Man kann auch prüfen, wie groß
-#           die Diskrepanz zwischen merch des Bieters und typicalMerch ist.
-#     X Address und payment_account sind anscheinend keine Hashs sondern ein
-#           paar der (ersten?) Zeichen finden sich mehrfach
-#           https://www.kaggle.com/c/facebook-recruiting-iv-human-or-bot/forums/t/13874/obfuscation-and-similarity
-#     X Über wie viele verschiedene URLs pro Gebot kommt der Bieter?
-#     X Für folgende Variablen SD und Range hinzufügen:
-#           X nBids, X nIPs, X nDevices, X lastBid, X Rank, X maxSeq, X nCountries, X nUrl,
-#           X countryChanges, X ipChanges, X bidderIpBigramProb, X deviceChanges,
-#           X distance, X timeDiff
-
-# Alle Variablen auch disaggregiert, also pro Bieter UND Auktion erfassen mit Zusatz _BA
 
 auctions <- unique(dat$auction)
 
@@ -234,55 +166,6 @@ ipBigrams <- data.frame(bigram = gsub(pattern = " ", replacement = ".", x = name
                         count = as.numeric(temp2),
                         stringsAsFactors = F, row.names = NULL)
 
-################################################################
-# Achtung: Nur auf train-Daten ausführen, läuft sehr lange
-################################################################
-# meanOutcome <- lapply(ipBigramsCommon$bigram, function(bigr){
-#       nIteration <- which(ipBigramsCommon$bigram == bigr)
-#       if (nIteration %% 10 == 0) print(nIteration)
-#       # Search in the middle of an IP
-#       pat <- paste("\\.", bigr, "\\D", sep = "")
-#       matched <- grep(pattern = pat, x = bidderIPs$ip)
-#       # Search in the beginning of an IP
-#       pat <- paste("^", bigr, "\\D", sep = "")
-#       matched <- c(matched, grep(pattern = pat, x = bidderIPs$ip))
-#       # Search at the end of an IP
-#       pat <- paste("\\D", bigr, "$", sep = "")
-#       matched <- c(matched, grep(pattern = pat, x = bidderIPs$ip))
-#       mean(bidderIPs$outcome[matched])
-#       })
-# # save(meanOutcome, file = "Mydata/meanOutcome.RData")
-# hist(unlist(meanOutcome), 100) # = Common
-# Normalverteilt. Ich will den Mittelwert der häufigen Bigrams mit dem
-# Mittelwert der seltenen vergleichen. Am Ende könnte ich für jede IP eine Art
-# Häufigkeitsindikator errechnen
-# Keep only common bigrams for now (speed)
-# ipBigramsUncommon <- ipBigrams[ipBigrams$count < 59, ]
-# cl <- makeCluster(3)
-# registerDoSNOW(cl)
-# meanOutcomeUnc <- lapply(ipBigramsUncommon$bigram, function(bigr){
-#       nIteration <- which(ipBigramsUncommon$bigram == bigr)
-#       if (nIteration %% 10 == 0) print(nIteration)
-#       # Search in the middle of an IP
-#       pat <- paste("\\.", bigr, "\\D", sep = "")
-#       matched <- grep(pattern = pat, x = bidderIPs$ip)
-#       # Search in the beginning of an IP
-#       pat <- paste("^", bigr, "\\D", sep = "")
-#       matched <- c(matched, grep(pattern = pat, x = bidderIPs$ip))
-#       # Search at the end of an IP
-#       pat <- paste("\\D", bigr, "$", sep = "")
-#       matched <- c(matched, grep(pattern = pat, x = bidderIPs$ip))
-#       mean(bidderIPs$outcome[matched])
-# })
-# save(meanOutcomeUnc, file = "Mydata/meanOutcomeUnc.RData")
-# hist(unlist(meanOutcomeUnc), 100)
-# summary(unlist(meanOutcome))
-# summary(unlist(meanOutcomeUnc))
-# Uncommon Bigrams sind zu ca. 19,5% Bots, common Bigrams zu ca. 16%. Ist dieser
-# Unterschied signifikant?
-# t.test(unlist(meanOutcome), unlist(meanOutcomeUnc), alternative = "less")
-# p = 0, es sollte sich lohnen wie angedacht für jeden Bieter eine Art
-# Gewöhnlichkeitsindikator auf Basis der von ihm verwendeten IPs zu erstellen
 
 ### Wahrscheinlichkeit jeder IP als Mittelwert der Wahrscheinlichkeiten der
 # enthaltenen Bigrams errechnen und den Durchschnitt pro Bieter bilden
@@ -331,11 +214,8 @@ save(bidderIpBigramProbs, file = "Mydata/bidderIpBigramProbs.RData")
 #       Max.        408.5047    58.5144   6.981 2.93e-12 ***
 
 # Habe die Variablen einzeln getestet als Regressoren für outcome.
-# Mean, 3rd.Qu. und Max. sind signifikant. Max sogar hochsignifikant. Ursprünglich
-# wollte ich nur den Mean verwenden. Max ergibt intuitiv auch Sinn, also übernehme
-# ich diese beiden Variablen.
-# Nachträglich habe ich noch sqrtProbSum hinzugefügt, das ist auch hochsignifikant
-# und das füge ich auch hinzu.
+# Mean, 3rd.Qu. und Max. sind signifikant. Max sogar hochsignifikant.
+# Nachträglich habe ich noch sqrtProbSum hinzugefügt, auch hochsignifikant
 # IPs hashen war nicht hilfreich
 
 
@@ -391,54 +271,11 @@ nUrlRange <- nUrlRange[, .(nUrlRange = max(nUrl) - min(nUrl)), by = bidder_id]
 rm(bids); gc()
 # temp <- merge(nUrlPerBid, dat4, by = "bidder_id")
 # ggplot(aes(y = nUrlPerBid, x = factor(outcome)), data = temp) + geom_boxplot()
-# # Sieht gut aus
 # summary(glm(temp$outcome ~ temp$nUrlPerBid, family = "binomial"))
 # Coefficients:
 #     Estimate Std. Error z value Pr(>|z|)
 # (Intercept)      -1.9153     0.1536  -12.47  < 2e-16 ***
 #     temp$nUrlPerBid  -2.5132     0.3872   -6.49 8.57e-11 ***
-# Das ist besser / signifikanter als der Ansatz unten mit lastNgram
-
-# URLs untersuchen (n-grams, das sind hier chars, keine Wörter)
-# Funktion für einen character-Vektor
-# getTopNgram <- function(x, n = 4L){
-#     ngrams <- textcnt(x,
-#                       n = n,
-#                       split = " ", # i.e. no split
-#                       method = "prefix")
-#     ngrams <- names(sort(ngrams[nchar(names(ngrams)) == n], decreasing = T)[1])
-# }
-# topNGram <- dat[, .(topNGram = getTopNgram(url, n = 15)), by = bidder_id]
-# sort(table(topNGram$topNGram))
-# temp <- merge(topNGram, dat4, by = "bidder_id")
-# confusionMatrix(data = as.numeric(temp$outcome),
-#                 reference = as.numeric(temp$topNGram != "vasstdc27m7nks3"))
-### Die obige Variante ergibt intuitiv Sinn, bringt aber nichts für die Vorhersage
-# lastNgram <- dat[, .(lastNgram = names(tail(textcnt(url,
-#                                                     n = 4L,
-#                                                     split = " ",
-#                                                     method = "prefix"), 1))),
-#                  by = bidder_id]
-# temp <- merge(lastNgram, dat4, by = "bidder_id")
-# confusionMatrix(data = as.numeric(temp$outcome),
-#                 reference = as.numeric(temp$lastNgram != "vass"))
-# Confusion Matrix and Statistics
-#
-# Reference
-# Prediction    0    1
-# 0  686 1195
-# 1   19   84
-# nGramDummy <- factor(temp$topNGram == "vasstdc27m7nks3")
-# summary(glm(temp$outcome ~ nGramDummy, family = "binomial"))
-# Coefficients:
-#     Estimate Std. Error z value Pr(>|z|)
-# (Intercept)     -2.6551     0.1129 -23.522  < 2e-16 ***
-#     nGramDummyTRUE  -0.9314     0.2585  -3.603 0.000315 ***
-# Mir ist nicht klar, warum das funktioniert. Bei lastNgram kommt nur "vass", also
-# vasstdc27m7nks3 heraus, wenn im Alphabet für diesen Bieter danach kein nGram
-# mehr kommt. Das ist also eher zufällig.
-# Benutze stattdessen nUrlPerBid
-
 
 
 # Stelle der Gebote pro Bieter und Auktion
@@ -522,7 +359,7 @@ temp <- na.omit(temp)
 ggplot(temp, aes(x=log(maxSeq), y=log(nSeq), shape=factor(outcome), color = factor(outcome))) +
     geom_point() +
     scale_shape_manual(values=c(1,2))
-# Da erkenne ich so nichts interessantes
+# nichts interessantes
 ggplot(temp, aes(factor(outcome), (log(nSeq)))) + geom_boxplot()
 # Bots tendenziell mit mehr Sequenzen, aber wohl nicht signifikant
 ggplot(temp, aes(factor(outcome), (log(maxSeq)))) + geom_boxplot()
@@ -573,7 +410,6 @@ bidderParticipations <- data.table(bidder_id = names(bidderParticipations),
                                    nParticipations = bidderParticipations)
 
 # Auf wie viele Kategorien hat der Bieter geboten?
-# (evtl. nochmal per Hand prüfen, ob das Ergebnis stimmt)
 nMerch <- dat2[, .(nMerch = length(unique(merchandise.max))),
                by = bidder_id]
 
@@ -597,7 +433,6 @@ temp <- join_all(list(maxMaxSeq, maxNSeq, train), by = "bidder_id")
 temp <- na.omit(temp)
 ggplot(aes(y = log(maxNSeq) + (3/8), x = factor(outcome)), data = temp) + geom_boxplot()
 ggplot(aes(log(maxNSeq), log(maxSeqMax), color = factor(outcome)), data = temp) + geom_point()
-# OK, die beiden Variablen sind weniger korreliert als ich gedacht habe.
 
 # Worauf bietet der Bieter normalerweise?
 typicalMerch <- dat2[, .(typicalMerch = names(sort(table(merchandise.max),
@@ -631,25 +466,25 @@ typicalRegion <- typicalCountry[, .(countrycode(toupper(typicalCountry),
 setnames(typicalRegion, c("bidder_id", "typicalRegion"))
 typicalRegion$typicalRegion <- factor(typicalRegion$typicalRegion)
 
-# Convert countries to longitude and latitude
-# library(geonames)
-# options(geonamesUsername="Khl4v")
-# allCountryCodes <- toupper(unique(typicalCountry$typicalCountry))
-# allCountries <- lapply(allCountryCodes, function(x) GNcountryInfo(country = x))
-# # An Stelle von Lon und Lat die Variablen north und east verwenden
-# coord <- lapply(allCountries, function(x) data.frame(north = x$north,
-#                                                      east = x$east,
-#                                                      country = x$countryCode))
-# coord <- do.call(rbind, coord)
-# # Aus irgendeinem Grund Duplikate dabei. Bilde vorsichtshalber Mittelwerte
-# coord <- data.table(coord)
-# coord$north <- as.numeric(as.character(coord$north))
-# coord$east <- as.numeric(as.character(coord$east))
-# east <- coord[, .(east = mean(east)), by = country]
-# north <- coord[, .(north = mean(north)), by = country]
-# coord <- merge(east, north, by = "country")
-# # 250 Länder, mehr als in allCountries, weiß nicht warum.
-# save(coord, file = "coord.RData")
+Convert countries to longitude and latitude
+library(geonames)
+options(geonamesUsername="Khl4v")
+allCountryCodes <- toupper(unique(typicalCountry$typicalCountry))
+allCountries <- lapply(allCountryCodes, function(x) GNcountryInfo(country = x))
+# An Stelle von Lon und Lat die Variablen north und east verwenden
+coord <- lapply(allCountries, function(x) data.frame(north = x$north,
+                                                     east = x$east,
+                                                     country = x$countryCode))
+coord <- do.call(rbind, coord)
+# Duplikate dabei. Bilde vorsichtshalber Mittelwerte
+coord <- data.table(coord)
+coord$north <- as.numeric(as.character(coord$north))
+coord$east <- as.numeric(as.character(coord$east))
+east <- coord[, .(east = mean(east)), by = country]
+north <- coord[, .(north = mean(north)), by = country]
+coord <- merge(east, north, by = "country")
+# 250 Länder, mehr als in allCountries (weiß nicht warum)
+save(coord, file = "coord.RData")
 load("Mydata/coord.RData")
 
 
@@ -717,7 +552,7 @@ rm(merchDiscrepancy)
 # im Mittel zurück? Distanz als Summe der Differenzen von east und north
 dat$country <- toupper(dat$country)
 # coord muss in der Umgebung sein
-# Das Ganze hier dauert um die 2 Stunden...
+### Laufzeit um die 2 Stunden
 distance <- list()
 for (a in seq_along(auctions)){
       tempAuction <- dat[auction == auctions[a]]
@@ -762,14 +597,7 @@ distanceSD <- distance[, .(distanceSD = sd(distanceSums)), by = bidder_id]
 distanceRange <- distance[, .(distanceRange = max(distanceSums) - min(distanceSums)),
                           by = bidder_id]
 
-# Zeitdifferenzen zwischen Geboten eines Bieters
-# https://www.kaggle.com/c/facebook-recruiting-iv-human-or-bot/forums/t/14232/minimal-time-unit-52631578-95
-# Kaggle Forum: You can normalize time by subtracting the minimum time from the
-# current time, dividing by 1e9, multiplying by 19 and rounding to the nearest whole number
 dat[, timeNorm := (round((time - 52631578.95) / 1e9 * 19))]
-###### Testweise die Normierung auslassen
-############################################################################
-# dat[, timeNorm := time]
 timeNormDiff <- list()
 # 15051 Auktionen
 for (a in seq_along(auctions)){
@@ -936,8 +764,9 @@ addresses$commonAdrPrefix <- factor(addresses$commonAdrPrefix,
 
 
 # Imputation und letzte Daten zusammenfügen -------------------------------------
-# Keine Ahnung, warum sumDistanceMean character ist
+# sumDistanceMean ist character
 dat3$sumDistanceMean <- as.numeric(dat3$sumDistanceMean)
+# Sicherungskopie:
 dat4 <- dat3
 # Einige Variablen hinzufügen
 dat4 <- merge(dat4, paymentAccounts[, .(bidder_id, commonPaymPrefix)],
@@ -965,7 +794,7 @@ dat4 <- predict(preProc, newdata = dat4[, -which(colnames(dat4) %in% c("bidder_i
                                                                        "commonAdrPrefix")),
                                         with = F])
 dat4 <- data.table(dat4)
-# preProc wird sehr groß (warum??) 1400 Mb
+# preProc wird sehr groß: 1400 Mb
 rm(preProc); gc()
 # Herausgelassene Spalten wieder hinzufügen
 dat4 <- cbind(dat4,
@@ -976,16 +805,15 @@ dat4 <- cbind(dat4,
 
 ### Coord hinzufügen
 # Dazu EU durch CH und UK durch GB ersetzen, damit das merge funktioniert
-# dat3[country == "EU"]$country <- "CH"
-# dat3[country == "UK"]$country <- "GB"
-# dat3 <- merge(dat3, coord, by = "country", all.x = T, by.x = T)
+dat3[country == "EU"]$country <- "CH"
+dat3[country == "UK"]$country <- "GB"
+dat3 <- merge(dat3, coord, by = "country", all.x = T, by.x = T)
 
 
 # Outcome hinzufügen
 dat4 <- merge(dat4, train[, .(bidder_id, outcome)], by = "bidder_id", all.x = T)
 dat4na <- merge(dat4na, train[, .(bidder_id, outcome)], by = "bidder_id", all.x = T)
-# Überflüssige Spalten wieder entfernen. In dat4na behalte ich country, evtl.
-# kann das GBM mit so vielen Levels umgehen
+# Überflüssige Spalten wieder entfernen. In dat4na behalte ich country
 dat4[, country := NULL]
 dat4na[, country := NULL]
 dim(dat4) # 6614 73, im Trainigsset davon 1984 Zeilen
@@ -1071,30 +899,6 @@ sum(is.na(dat4transNa)) - sum(is.na(dat4$outcome))
 sum(is.na(dat4_999)) - sum(is.na(dat4$outcome))
 
 # Speichern ------------------------------------------------------------------
-# # Keep only vars that work with non-truncated data
-# nonTruncVars <-  c("bidder_id", "nBidsMean", "nIPsMean","nBidsSD",
-# "nBidsRange", "nIPsSD", "nIPsRange", "nDevicesMean", "nDevicesSD",
-# "nDevicesRange", "maxSeqMean", "maxSeqMax", "maxSeqSD", "maxSeqRange",
-# "nSeqSD", "nSeqRange", "nSeqMean", "maxNSeq", "meanNCountByAuc", "nUrlPerBid",
-# "nUrlRange", "nUrlSD", "ipChangesSD", "ipChangesRange", "countryChangesMax",
-# "countryChangesMean", "countryChangesSD", "countryChangesRange", "ipChangesMax",
-# "ipChangesMean",  "sqrtBigramProbSum", "bidderIpBigramProbsMean",
-# "bidderIpBigramProbsMax",  "bidderIpProbSD",  "bidderIpProbRange",
-# "deviceChangesMean",  "deviceChangesMax", "sumDistanceMean",
-# "distanceMax", "distanceSD", "distanceRange", "commonIPmean",
-# "merchDiscrepancyMean", "timeNormDiffSDMean", "timeNormDiffSDSD",
-# "timeNormDiffSDRange", "timeNormDiffRangeMean", "timeNormDiffRangeSD",
-# "timeNormDiffRangeRange",  "timeNormDiffMin", "timeNormDiffMean", "devicesPerBid",
-# "IPsPerBid", "countriesPerBid", "typicalMerch", "typicalContinent",
-# "typicalRegion", "V6", "V7", "outcome")
-#
-# dat4 <- dat4[, colnames(dat4) %in% nonTruncVars, with = F]
-# dat4na <- dat4na[, colnames(dat4na) %in% nonTruncVars, with = F]
-# dat4trans <- dat4trans[, colnames(dat4trans) %in% nonTruncVars, with = F]
-# dat4transNa <- dat4transNa[, colnames(dat4transNa) %in% nonTruncVars, with = F]
-# dat4_999 <- dat4_999[, colnames(dat4_999) %in% nonTruncVars, with = F]
-# dat4trans_999 <- dat4trans_999[, colnames(dat4trans_999) %in% nonTruncVars, with = F]
-
 # "Rohe" Daten inkl. NAs und ohne log oder sqrt Transformationen
 save(dat4na, file = "Mydata/dat4na.RData")
 # NAs per bagImpute aufgefüllt
@@ -1217,7 +1021,7 @@ auctions <- unique(dat[bidder_id %in% h]$auction)
 tempdat <- dat[auction %in% auctions]
 tempdat$bidderAction <- tempdat[, .(bidderAction = ifelse(bidder_id == h, 1, 0))]
 plot(tempdat$bidderAction, type = "l")
-# Hilft mir im Moment noch nicht weiter
+# nicht besonders hilfreich
 
 # Aufräumen -------------------------------------------------------------------
 rm(bids, dat, preProc, temp3); gc()
@@ -1230,7 +1034,6 @@ ggplot(dat4trans, aes(x = sumDistanceMean, y = distanceMax, color = factor(outco
 
 # Rtsne Plots -----------------------------------------------------------------
 # Dummies für Faktoren erstellen
-# rtsneDat <- data.frame(dat4trans[!is.na(outcome)])
 rtsneDat <- data.frame(dat4trans[, which(!colnames(dat4trans) %in% "outcome"),
                                  with = F])
 factors <- which(unlist(lapply(rtsneDat, class)) %in% c("factor"))
@@ -1283,10 +1086,8 @@ myTrainControl <- trainControl(method = "repeatedcv", number = 10, repeats = 2,
 set.seed(4321)
 start <- Sys.time()
 M1 <- train(y = dat4trans$outcome[!is.na(dat4trans$outcome)],
-      #             preProcess = "pca",
       tuneLength = 1,
       x = modelDat,
-#       tuneGrid = expand.grid(.C = c(5,15), .sigma = 1.040427),
       tuneGrid = expand.grid(.mtry = floor(sqrt(ncol(modelDat)))),
       method = "rf",
       metric = "ROC",
